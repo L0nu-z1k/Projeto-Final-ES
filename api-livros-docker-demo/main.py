@@ -78,6 +78,11 @@ def buscar_livro(livro_id: int):
         )
     return livro
 
+@app.get("/livros/quantidade")
+def quantidade_livros():
+    livros = servico._repo.listar()
+    return {"total": len(livros)}
+
 
 @app.post("/livros", response_model=Livro, status_code=status.HTTP_201_CREATED)
 def criar_livro(dados: LivroCriar):
