@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          cd api-livros-docker-demo
+          pip install -r requirements.txt
+
+      - name: Rodar pylint
+        run: |
+          cd api-livros-docker-demo
+          pylint main.py models.py repository.py service.py --fail-under=7.0
+
+      - name: Rodar testes com cobertura
+        run: |
+          cd api-livros-docker-demo
+          pytest tests/ --cov=. --cov-fail-under=70
