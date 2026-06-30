@@ -69,7 +69,7 @@ class ServicoLivros:
                 pass  # titulo ja confere
 
             autores = ol_data.get("authors", [])
-            if autores and not dados.autor:
+            if autores and (not dados.autor or dados.autor.strip() == ""):
                 dados = LivroCriar(
                     titulo=dados.titulo,
                     autor=autores[0].get("name", dados.autor),
