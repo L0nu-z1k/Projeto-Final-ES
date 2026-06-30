@@ -1,22 +1,17 @@
 """
 API REST de catalogo de livros (FastAPI).
-
-Estrutura em camadas:
-  - Rotas (este arquivo): recebem a requisicao, chamam o service, devolvem a resposta
-  - Service: regras de negocio
-  - Repository (repository.py): guarda e recupera os dados
-
-Para rodar:
-  pip install fastapi uvicorn
-  uvicorn main:app --reload
-
-Documentacao interativa: http://localhost:8000/docs
 """
 
+from datetime import datetime
+
+import httpx
 from fastapi import FastAPI, HTTPException, status
 
 from models import Livro, LivroCriar, LivroAtualizar
 from repository import RepositorioEmMemoria, RepositorioLivros
+
+ANO_ATUAL = datetime.now().year
+OPEN_LIBRARY_URL = "https://openlibrary.org/api/books"
 
 
 # ----------------------------------------------------------------------
@@ -24,10 +19,7 @@ from repository import RepositorioEmMemoria, RepositorioLivros
 # ----------------------------------------------------------------------
 
 class ServicoLivros:
-    """
-    Onde mora a logica de negocio. Recebe um RepositorioLivros pela
-    interface --- nao sabe se e em memoria, SQLite ou outra coisa.
-    """
+    """Logica de negocio. Recebe um RepositorioLivros pela interface."""
 
     def __init__(self, repositorio: RepositorioLivros) -> None:
         self._repo = repositorio
@@ -39,6 +31,24 @@ class ServicoLivros:
         return self._repo.buscar_por_id(livro_id)
 
     def criar(self, dados: LivroCriar) -> Livro:
+        # Regra 1: ISBN nao pode ser duplicado
+        for livro in self._repo.listar():
+            if livro.isbn == dados.isbn:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Ja existe um livro com o ISBN {dados.isbn}",
+                )
+
+        # Regra 2: ano deve ser valido
+        if not 1000 <= dados.ano <= ANO_ATUAL:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ano invalido: {dados.ano}. Use um valor entre 1000 e {ANO_ATUAL}",
+            )
+
+        # Dependencia externa: consulta Open Library pelo ISBN
+        dados = self._enriquecer_com_open_library(dados)
+
         return self._repo.adicionar(dados)
 
     def atualizar(self, livro_id: int, dados: LivroAtualizar) -> Livro | None:
@@ -47,6 +57,30 @@ class ServicoLivros:
     def remover(self, livro_id: int) -> bool:
         return self._repo.remover(livro_id)
 
+    def _enriquecer_com_open_library(self, dados: LivroCriar) -> LivroCriar:
+        """Consulta a Open Library e completa titulo/autor se necessario."""
+        try:
+            url = f"{OPEN_LIBRARY_URL}?bibkeys=ISBN:{dados.isbn}&format=json&jscmd=data"
+            resposta = httpx.get(url, timeout=5.0)
+            resposta.raise_for_status()
+            ol_data = resposta.json().get(f"ISBN:{dados.isbn}", {})
+
+            if ol_data.get("title") and dados.titulo == ol_data["title"]:
+                pass  # titulo ja confere
+
+            autores = ol_data.get("authors", [])
+            if autores and (not dados.autor or dados.autor.strip() == ""):
+                dados = LivroCriar(
+                    titulo=dados.titulo,
+                    autor=autores[0].get("name", dados.autor),
+                    ano=dados.ano,
+                    isbn=dados.isbn,
+                )
+        except (httpx.RequestError, httpx.HTTPStatusError):
+            pass  # se a Open Library falhar, continua sem enriquecer
+
+        return dados
+
 
 # ----------------------------------------------------------------------
 # Montagem da aplicacao
@@ -54,8 +88,6 @@ class ServicoLivros:
 
 app = FastAPI(title="Catalogo de Livros", version="1.0.0")
 
-# Injecao de dependencia simples: trocar a linha abaixo por outra
-# implementacao de RepositorioLivros nao exige mudar mais nada.
 servico = ServicoLivros(RepositorioEmMemoria())
 
 
