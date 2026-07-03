@@ -1,8 +1,10 @@
+"""Testes unitários do repositório em memória."""
 from models import LivroAtualizar, LivroCriar
 from repository import RepositorioEmMemoria
 
 
 def test_adicionar_e_listar():
+    """Testa adição de livro e listagem."""
     repo = RepositorioEmMemoria()
     livro = repo.adicionar(LivroCriar(titulo="A", autor="B", ano=2008, isbn="111"))
 
@@ -11,6 +13,7 @@ def test_adicionar_e_listar():
 
 
 def test_buscar_por_isbn():
+    """Testa busca de livro por ISBN."""
     repo = RepositorioEmMemoria()
     repo.adicionar(LivroCriar(titulo="A", autor="B", ano=2008, isbn="222"))
 
@@ -19,6 +22,7 @@ def test_buscar_por_isbn():
 
 
 def test_atualizar_e_remover():
+    """Testa atualização e remoção de livro."""
     repo = RepositorioEmMemoria()
     livro = repo.adicionar(LivroCriar(titulo="A", autor="B", ano=2008, isbn="333"))
 

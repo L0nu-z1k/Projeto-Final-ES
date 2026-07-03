@@ -1,4 +1,9 @@
+# Configuração de cobertura de testes
+# Define quais arquivos devem ser ignorados ao calcular cobertura
+
 [run]
 omit =
+    # Não contar testes na cobertura
     tests/*
+    # Não contar arquivos do ambiente virtual
     .venv/*
